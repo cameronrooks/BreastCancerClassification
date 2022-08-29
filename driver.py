@@ -1,12 +1,6 @@
-import torchvision
-import torchvision.transforms as tf
-import CancerModel as cm
+from CancerModel import ModelDriver
 
-transform = tf.ToTensor()
-data = torchvision.datasets.ImageFolder("./data/processed/train", transform)
+driver = ModelDriver(512, .001, "model1")
 
 
-model = cm.CancerModel(None, None, None)
-
-model(data[0][0])
-
+driver.train(num_epochs = 98)
