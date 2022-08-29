@@ -109,7 +109,7 @@ class ModelDriver():
         train_loader = torch.utils.data.DataLoader(data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
         loss_fn = torch.nn.BCELoss()
 
-        for x in range(num_epochs):
+        for x in range(1, num_epochs + 1):
             running_loss = 0
             progress = 0
 
@@ -142,8 +142,8 @@ class ModelDriver():
                 'optimizer': optimizer.state_dict()
             }
 
-            print("epoch " + str(x) + ": loss = " + str(running_loss))
-            torch.save(self.model.state_dict(), self.epochs_dir + "/epoch" + str(x))
+            print("epoch " + str(x + self.epoch) + ": loss = " + str(running_loss))
+            torch.save(self.model.state_dict(), self.epochs_dir + "/epoch" + str(x + self.epoch))
             torch.save(checkpoint, self.checkpoint_path)
 
             loss_text_file.write(str(running_loss))
