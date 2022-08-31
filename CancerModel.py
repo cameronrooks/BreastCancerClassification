@@ -13,6 +13,7 @@ class CancerModel(nn.Module):
     def __init__(self):
         super(CancerModel, self).__init__()
 
+        #convolutional layer 1
         self.conv_layer1 = nn.Sequential(
             nn.Conv2d(3, 32, 5),
             nn.BatchNorm2d(32),
@@ -20,26 +21,36 @@ class CancerModel(nn.Module):
             nn.MaxPool2d(kernel_size = 2)
         )
 
+        #convolutional layer 2
         self.conv_layer2 = nn.Sequential(
             nn.Conv2d(32, 64, 5),
             nn.BatchNorm2d(64),
             nn.ReLU(),
+            nn.Conv2d(64, 64, 5),
+            nn.BatchNorm2d(64),
+            nn.ReLU,
             nn.MaxPool2d(kernel_size = 2)
         )
 
+        #convolutional layer 3
         self.conv_layer3 = nn.Sequential(
             nn.Conv2d(64, 128, 5),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 128, 5),
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size = 2)
         )
 
+        #fully connected layer
         self.fc = nn.Sequential(
             nn.Linear(512, 256),
             nn.BatchNorm1d(256),
             nn.ReLU()
         )
 
+        #output layer
         self.output = nn.Sequential(
             nn.Linear(256, 1),
             nn.Sigmoid()
@@ -61,8 +72,12 @@ class CancerModel(nn.Module):
 #class that interacts with the CancerModel
 class ModelDriver():
     def __init__(self, batch_size, learning_rate, model_name):
+
+        #initialize hyperparameters
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+
+        #initialize necessary directories
         self.model_dir = "./models/" + model_name
         self.epochs_dir = self.model_dir + "/epochs"
         self.plots_dir = self.model_dir + "/plots"
@@ -86,6 +101,8 @@ class ModelDriver():
         if (not os.path.exists(self.checkpoint_dir)):
             os.mkdir(self.checkpoint_dir)
 
+
+        #set up model and optimizer
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.model = cm.CancerModel()
@@ -94,6 +111,7 @@ class ModelDriver():
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr = self.learning_rate, momentum = .7)
         self.epoch = 0
 
+        #load optimizer and model state dicts from checkpoint if it exists
         if (len(os.listdir(self.checkpoint_dir)) > 0):
             checkpoint = torch.load(self.checkpoint_path)
             self.model.load_state_dict(checkpoint['state_dict'])
@@ -104,26 +122,33 @@ class ModelDriver():
 
 
     def train(self, num_epochs):
+
+        #open text files to log the validation and training losses
         loss_text_file = open(self.model_dir + "/train_losses.txt", 'a')
         val_loss_file = open(self.model_dir + "/validation_losses.txt", 'a')
 
-
         optimizer = self.optimizer
+
+
         transform = tf.Compose([
             tf.Resize((50, 50)),
             tf.ToTensor()
         ])
+        
+        #load data and create dataloader for training
         train_data = torchvision.datasets.ImageFolder(config.TRAIN_PATH, transform)
         n_train = len(train_data)
         train_loader = torch.utils.data.DataLoader(train_data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
         num_train_batches = math.ceil(n_train/self.batch_size)
 
-
+        #load validation data and create validation dataloader
         val_data = torchvision.datasets.ImageFolder(config.VAL_PATH, transform)
         n_val = len(val_data)
         val_loader = torch.utils.data.DataLoader(val_data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
         num_val_batches = math.ceil(n_val/self.batch_size)
 
+
+        #initialize loss funtion to Binary Cross Entropy Loss
         loss_fn = torch.nn.BCELoss()
 
 
@@ -134,23 +159,26 @@ class ModelDriver():
 
             #training loop
             for i, data, in enumerate(train_loader):
+
+                #print current epoch progress
                 if (((i * self.batch_size) / n_train) * 100 >= progress):
                     print(str(progress) + "%", flush = True)
                     progress += 25
 
-
+                #get inputs and labels
                 inputs, labels = data
                 labels = labels.float()
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 
-
+                #zero the gradient
                 optimizer.zero_grad()
 
+                #get predictions from model
                 pred = self.model(inputs)
 
-                loss = loss_fn(pred, labels)
-                #print(loss.item())
 
+                #calculate loss and perform backward pass
+                loss = loss_fn(pred, labels)
                 loss.backward()
 
                 running_loss += loss.item() * inputs.shape[0]
@@ -169,6 +197,7 @@ class ModelDriver():
 
                 running_val_loss += loss.item() * inputs.shape[0]
 
+            #create new checkpoint for current epoch
             checkpoint = {
                 'epoch': x + self.epoch,
                 'state_dict': self.model.state_dict(),
@@ -181,6 +210,7 @@ class ModelDriver():
             print("epoch " + str(x + self.epoch) + ": training loss = " + str(running_loss))
             print("validation loss: " + str(running_val_loss))
 
+            #save epoch and checkpoint to respective directories
             torch.save(self.model.state_dict(), self.epochs_dir + "/epoch" + str(x + self.epoch))
             torch.save(checkpoint, self.checkpoint_path)
 
