@@ -15,7 +15,7 @@ class CancerModel(nn.Module):
 
         #convolutional layer 1
         self.conv_layer1 = nn.Sequential(
-            nn.Conv2d(3, 32, 5),
+            nn.Conv2d(3, 32, 5, padding = "same"),
             nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size = 2)
@@ -23,21 +23,21 @@ class CancerModel(nn.Module):
 
         #convolutional layer 2
         self.conv_layer2 = nn.Sequential(
-            nn.Conv2d(32, 64, 5),
+            nn.Conv2d(32, 64, 5, padding = "same"),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, 5),
+            nn.Conv2d(64, 64, 5, padding = "same"),
             nn.BatchNorm2d(64),
-            nn.ReLU,
+            nn.ReLU(),
             nn.MaxPool2d(kernel_size = 2)
         )
 
         #convolutional layer 3
         self.conv_layer3 = nn.Sequential(
-            nn.Conv2d(64, 128, 5),
+            nn.Conv2d(64, 128, 5, padding = "same"),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(128, 128, 5),
+            nn.Conv2d(128, 128, 5, padding = "same"),
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size = 2)
@@ -45,7 +45,7 @@ class CancerModel(nn.Module):
 
         #fully connected layer
         self.fc = nn.Sequential(
-            nn.Linear(512, 256),
+            nn.Linear(4608, 256),
             nn.BatchNorm1d(256),
             nn.ReLU()
         )
