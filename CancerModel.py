@@ -6,6 +6,7 @@ import torchvision.transforms as tf
 import CancerModel as cm
 import config
 import math
+import matplotlib.pyplot as plt
 import os
 
 class CancerModel(nn.Module):
@@ -18,7 +19,8 @@ class CancerModel(nn.Module):
             nn.Conv2d(3, 32, 5, padding = "same"),
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size = 2)
+            nn.MaxPool2d(kernel_size = 2),
+            nn.Dropout(.3)
         )
 
         #convolutional layer 2
@@ -29,7 +31,8 @@ class CancerModel(nn.Module):
             nn.Conv2d(64, 64, 5, padding = "same"),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size = 2)
+            nn.MaxPool2d(kernel_size = 2),
+            nn.Dropout(.3)
         )
 
         #convolutional layer 3
@@ -40,14 +43,16 @@ class CancerModel(nn.Module):
             nn.Conv2d(128, 128, 5, padding = "same"),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size = 2)
+            nn.MaxPool2d(kernel_size = 2),
+            nn.Dropout(.3)
         )
 
         #fully connected layer
         self.fc = nn.Sequential(
             nn.Linear(4608, 256),
             nn.BatchNorm1d(256),
-            nn.ReLU()
+            nn.ReLU(),
+            nn.Dropout(.3)
         )
 
         #output layer
@@ -228,11 +233,15 @@ class ModelDriver():
         ])
 
         test_model = cm.CancerModel()
+        test_model.to(self.device)
         if (epoch == 'checkpoint'):
             checkpoint = torch.load(self.checkpoint_path)
             test_model.load_state_dict(checkpoint['state_dict'])
         else:
+
             test_model.load_state_dict(torch.load(self.epochs_dir + "/" + epoch))
+
+        test_model.eval()
 
 
         test_data = torchvision.datasets.ImageFolder(config.TEST_PATH, transform)
@@ -247,7 +256,7 @@ class ModelDriver():
             inputs, labels = inputs.to(self.device), labels.to(self.device)
 
 
-            pred = self.model(inputs)
+            pred = test_model(inputs)
             loss = loss_fn(pred, labels)
 
             running_loss += loss.item() * inputs.shape[0]
@@ -261,4 +270,49 @@ class ModelDriver():
         return None
 
     def generate_loss_plots(self):
+        epochs = os.listdir(self.epochs_dir)
+
+
+        test_losses = [None] * len(epochs)
+        train_losses = []
+        validation_losses = []
+
+        train_file = open(self.model_dir + '/train_losses.txt', 'r')
+        val_file = open(self.model_dir + '/validation_losses.txt', 'r')
+
+        for line in train_file:
+            line = line.strip()
+            train_losses.append(float(line))
+
+        for line in val_file:
+            line = line.strip()
+            validation_losses.append(float(line))
+
+        count = 0
+        for epoch in epochs:
+            epoch_num = int(epoch[5:]) -1
+            loss = self.test(epoch)
+            test_losses[epoch_num] = loss
+
+            count += 1
+            print(count)
+
+
+        x_vals = range(1, self.epoch + 1)
+
+        fig1, ax1 = plt.subplots()
+        fig2, ax2 = plt.subplots()
+        fig3, ax3 = plt.subplots()
+
+        ax1.plot(x_vals, train_losses, color = 'blue', label = 'training loss')
+        ax1.plot(x_vals, validation_losses, color = 'orange', label = 'validation loss')
+
+        ax2.plot(x_vals, train_losses, color = 'blue', label = 'training loss')
+        ax2.plot(x_vals, test_losses, color = 'orange', label = 'test loss')
+
+        ax3.plot(x_vals, test_losses, color = 'blue', label = 'test loss')
+
+        plt.show()
+        
+
         return None
