@@ -3,10 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as tf
+import pandas as pd
+import numpy as np
 import CancerModel as cm
 import config
+import seaborn as sn
 import math
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 import os
 
 class CancerModel(nn.Module):
@@ -123,7 +127,40 @@ class ModelDriver():
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             self.epoch = checkpoint['epoch']
 
-        
+        self.test_loader = None
+        self.train_loader = None
+        self.val_loader = None
+
+        self.n_val = 0
+        self.n_test = 0
+        self.n_train = 0
+
+
+    def load_train_data(self):
+        transform = tf.Compose([
+            tf.Resize((50, 50)),
+            tf.ToTensor()
+        ])
+        train_data = torchvision.datasets.ImageFolder(config.TRAIN_PATH, transform)
+        self.n_train = len(train_data)
+        self.train_loader = torch.utils.data.DataLoader(train_data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
+
+        val_data = torchvision.datasets.ImageFolder(config.VAL_PATH, transform)
+        self.n_val = len(val_data)
+        self.val_loader = torch.utils.data.DataLoader(val_data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
+
+        return 0
+
+    def load_test_data(self):
+        transform = tf.Compose([
+            tf.Resize((50, 50)),
+            tf.ToTensor()
+        ])
+        test_data = torchvision.datasets.ImageFolder(config.TEST_PATH, transform)
+        self.n_test = len(test_data)
+        self.test_loader = torch.utils.data.DataLoader(test_data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
+
+        return 0
 
 
     def train(self, num_epochs):
@@ -134,24 +171,8 @@ class ModelDriver():
 
         optimizer = self.optimizer
 
-
-        transform = tf.Compose([
-            tf.Resize((50, 50)),
-            tf.ToTensor()
-        ])
-        
-        #load data and create dataloader for training
-        train_data = torchvision.datasets.ImageFolder(config.TRAIN_PATH, transform)
-        n_train = len(train_data)
-        train_loader = torch.utils.data.DataLoader(train_data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
-        num_train_batches = math.ceil(n_train/self.batch_size)
-
-        #load validation data and create validation dataloader
-        val_data = torchvision.datasets.ImageFolder(config.VAL_PATH, transform)
-        n_val = len(val_data)
-        val_loader = torch.utils.data.DataLoader(val_data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
-        num_val_batches = math.ceil(n_val/self.batch_size)
-
+        if (self.train_loader == None):
+            self.load_train_data()
 
         #initialize loss funtion to Binary Cross Entropy Loss
         loss_fn = torch.nn.BCELoss()
@@ -163,10 +184,10 @@ class ModelDriver():
 
 
             #training loop
-            for i, data, in enumerate(train_loader):
+            for i, data, in enumerate(self.train_loader):
 
                 #print current epoch progress
-                if (((i * self.batch_size) / n_train) * 100 >= progress):
+                if (((i * self.batch_size) / self.n_train) * 100 >= progress):
                     print(str(progress) + "%", flush = True)
                     progress += 25
 
@@ -192,7 +213,7 @@ class ModelDriver():
             #validation loop
             print("running validation...")
             running_val_loss = 0
-            for i, data in enumerate(val_loader):
+            for i, data in enumerate(self.val_loader):
                 inputs, labels = data
                 labels = labels.float()
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -209,8 +230,8 @@ class ModelDriver():
                 'optimizer': optimizer.state_dict()
             }
 
-            running_loss /= n_train
-            running_val_loss /= n_val
+            running_loss /= self.n_train
+            running_val_loss /= self.n_val
 
             print("epoch " + str(x + self.epoch) + ": training loss = " + str(running_loss))
             print("validation loss: " + str(running_val_loss))
@@ -227,10 +248,6 @@ class ModelDriver():
 
 
     def test(self, epoch = 'checkpoint'):
-        transform = tf.Compose([
-            tf.Resize((50, 50)),
-            tf.ToTensor()
-        ])
 
         test_model = cm.CancerModel()
         test_model.to(self.device)
@@ -242,15 +259,16 @@ class ModelDriver():
             test_model.load_state_dict(torch.load(self.epochs_dir + "/" + epoch))
 
         test_model.eval()
-
-
-        test_data = torchvision.datasets.ImageFolder(config.TEST_PATH, transform)
-        test_loader = torch.utils.data.DataLoader(test_data, batch_size = self.batch_size, shuffle = True, num_workers = 0)
-        n_test = len(test_data)
         loss_fn = torch.nn.BCELoss()
 
         running_loss = 0
-        for i, data in enumerate(test_loader):
+
+        correct_pos = 0
+        correct_neg = 0
+        false_pos = 0
+        false_neg = 0
+        
+        for i, data in enumerate(self.test_loader):
             inputs, labels = data
             labels = labels.float()
             inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -263,15 +281,61 @@ class ModelDriver():
 
             
 
-        return running_loss/n_test
+        return running_loss/self.n_test
 
         
-    def generate_confusion_matrix(self):
-        return None
+    def generate_confusion_matrix(self, epoch = 'checkpoint'):
+        if (self.test_loader == None):
+            self.load_test_data()
+
+        test_model = cm.CancerModel()
+        test_model.to(self.device)
+        if (epoch == 'checkpoint'):
+            checkpoint = torch.load(self.checkpoint_path)
+            test_model.load_state_dict(checkpoint['state_dict'])
+        else:
+
+            test_model.load_state_dict(torch.load(self.epochs_dir + "/" + epoch))
+
+        test_model.eval()
+
+        y_pred = []
+        y_true = []
+
+        for i, data in enumerate(self.test_loader):
+            inputs, labels = data
+            labels = labels.float()
+            inputs, labels = inputs.to(self.device), labels.to(self.device)
+
+            pred = test_model(inputs)
+            pred = torch.round(pred)
+            pred = pred.data.cpu().numpy()
+            y_pred.extend(pred)
+
+            labels = labels.data.cpu().numpy()
+            y_true.extend(labels)
+
+        classes = ('Negative', ' Positive')
+
+        matrix = confusion_matrix(y_true, y_pred)
+
+
+        df_cm = pd.DataFrame(matrix/matrix.astype(np.float).sum(axis=1)[:,None], index = [i for i in classes], columns = [i for i in classes])
+        #df_cm = pd.DataFrame(matrix, index = classes, columns = classes)
+
+
+        plt.figure(figsize = (12, 7))
+        ax = sn.heatmap(df_cm, annot=True)
+        ax.set_xlabel('Predicted values')
+        ax.set_ylabel('Actual values')
+        plt.show()
+            
 
     def generate_loss_plots(self):
-        epochs = os.listdir(self.epochs_dir)
+        if (self.test_loader == None):
+            self.load_test_data()
 
+        epochs = os.listdir(self.epochs_dir)
 
         test_losses = [None] * len(epochs)
         train_losses = []
