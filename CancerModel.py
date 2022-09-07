@@ -328,6 +328,8 @@ class ModelDriver():
         ax = sn.heatmap(df_cm, annot=True)
         ax.set_xlabel('Predicted values')
         ax.set_ylabel('Actual values')
+
+        plt.savefig(self.plots_dir + '/confusion_matrix.png')
         plt.show()
             
 
@@ -370,11 +372,27 @@ class ModelDriver():
 
         ax1.plot(x_vals, train_losses, color = 'blue', label = 'training loss')
         ax1.plot(x_vals, validation_losses, color = 'orange', label = 'validation loss')
+        ax1.set_title("Training and Validation Loss vs Epoch")
+        ax1.set_xlabel("Epoch")
+        ax1.set_ylabel("Loss")
+        ax1.legend()
+        ax1.figure.savefig(self.plots_dir + '/train_val_loss.png')
+
 
         ax2.plot(x_vals, train_losses, color = 'blue', label = 'training loss')
         ax2.plot(x_vals, test_losses, color = 'orange', label = 'test loss')
+        ax2.set_title("Training and Test Loss vs Epoch")
+        ax2.set_xlabel("Epoch")
+        ax2.set_ylabel("Loss")
+        ax2.legend()
+        ax2.figure.savefig(self.plots_dir + '/train_test_loss.png')
 
         ax3.plot(x_vals, test_losses, color = 'blue', label = 'test loss')
+        ax3.set_title("Test Loss vs Epoch")
+        ax3.set_xlabel("Epoch")
+        ax3.set_ylabel("Loss")
+        ax3.legend()
+        ax3.figure.savefig(self.plots_dir + '/train_loss.png')
 
         plt.show()
         
